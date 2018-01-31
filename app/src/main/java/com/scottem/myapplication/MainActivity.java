@@ -16,19 +16,53 @@ import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String projectToken = "a3fc8ed5d0de1dd3bc9df7ab9a6f005a";
-    public final Tweak<Boolean> showAds = MixpanelAPI.booleanTweak("Show ads", false);
+    private TextView mMainText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        mMainText = (TextView)findViewById(R.id.main_text);
 
-        final MixpanelAPI mixpanel = MixpanelAPI.getInstance(this, projectToken);
-        // show loading indicator of some sort (splash screen, spinner...)
-        mixpanel.identify(mixpanel.getDistinctId());
-        mixpanel.getPeople().identify(mixpanel.getDistinctId());
+        trackAppLaunched();
 
+        final MixpanelAPI mixpanel = ((MyApplication) getApplication()).getAnalyticsTracker();
+        mixpanel.getPeople().addOnMixpanelTweaksUpdatedListener(new OnMixpanelTweaksUpdatedListener() {
+            @Override
+            public void onMixpanelTweakUpdated(Set<String> updatedTweaksName) {
+                mixpanel.getPeople().joinExperimentIfAvailable();
+                Log.d("scott", "onMixpanelTweakUpdated inside activity");
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateUI();
+                    }
+                });
+            }
+        });
+
+        updateUI();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        ((MyApplication) getApplication()).getAnalyticsTracker().reset();
+    }
+
+    public void updateUI() {
+        Log.d("scott", "updateUI in thread " + Thread.currentThread().getName());
+        if (MyApplication.showAds.get()) {
+            // Remove loading indicator
+            mMainText.setText("Hello Mixpanel!");
+        } else {
+            mMainText.setText("Hello World!");
+        }
+    }
+
+    public void trackAppLaunched() {
+        MixpanelAPI mixpanel = ((MyApplication) getApplication()).getAnalyticsTracker();
         try {
             JSONObject props = new JSONObject();
             props.put("Test", true);
@@ -38,18 +72,5 @@ public class MainActivity extends AppCompatActivity {
         } catch (JSONException e) {
             Log.e("MYAPP", "Unable to add properties to JSONObject", e);
         }
-
-        mixpanel.getPeople().addOnMixpanelTweaksUpdatedListener(new OnMixpanelTweaksUpdatedListener() {
-            @Override
-            public void onMixpanelTweakUpdated(Set<String> updatedTweaksName) {
-                mixpanel.getPeople().joinExperimentIfAvailable();
-                if (showAds.get()) {
-                    // Remove loading indicator
-                    Log.d("msg", "We're tweaking!");
-                    TextView mainText = (TextView)findViewById(R.id.main_text);
-                    mainText.setText("Hello Mixpanel!");
-                }
-            }
-        });
     }
 }
